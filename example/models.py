@@ -13,6 +13,11 @@ def auto_alts():
 
 
 @sim.table()
+def cdap_alts():
+    return asim.identity_matrix(["Mandatory", "NonMandatory", "Home"])
+
+
+@sim.table()
 def zones():
     # I grant this is a weird idiom but it helps to name the index
     return pd.DataFrame({"TAZ": np.arange(1454)+1}).set_index("TAZ")
@@ -44,6 +49,12 @@ def workplace_location_spec():
 def workplace_size_spec():
     f = os.path.join('configs', 'workplace_location_size_terms.csv')
     return pd.read_csv(f)
+
+
+@sim.injectable()
+def cdap_1_person_spec():
+    f = os.path.join('configs', 'cdap_1_person.csv')
+    return asim.read_model_spec(f).head(2*1)
 
 
 @sim.table()
@@ -118,6 +129,25 @@ def workplace_location_simulate(persons,
 
     print "Describe of hoices:\n", choices.describe()
     sim.add_column("persons", "workplace_taz", choices)
+
+    return model_design
+
+
+@sim.model()
+def cdap_simulate(persons, households, cdap_alts, cdap_1_person_spec):
+
+    choosers = sim.merge_tables(persons.name, tables=[persons, households])
+
+    alternatives = cdap_alts.to_frame()
+
+    print cdap_1_person_spec
+
+    choices, model_design = \
+        asim.simple_simulate(choosers, alternatives, cdap_1_person_spec,
+                             mult_by_alt_col=True)
+
+    print "Choices:\n", choices.value_counts()
+    sim.add_column("persons", "cdap", choices)
 
     return model_design
 
