@@ -54,7 +54,7 @@ def workplace_size_spec():
 @sim.injectable()
 def cdap_1_person_spec():
     f = os.path.join('configs', 'cdap_1_person.csv')
-    return asim.read_model_spec(f).head(2*1)
+    return asim.read_model_spec(f)
 
 
 @sim.table()
@@ -97,6 +97,9 @@ def auto_ownership_simulate(households,
         asim.simple_simulate(choosers, alternatives, auto_ownership_spec,
                              mult_by_alt_col=True)
 
+    # map the string names to actual counts of cars
+    choices = choices.map(dict([("cars%d" % i , i) for i in range(5)]))
+
     print "Choices:\n", choices.value_counts()
     sim.add_column("households", "auto_ownership", choices)
 
@@ -127,20 +130,21 @@ def workplace_location_simulate(persons,
                              mult_by_alt_col=False,
                              sample_size=50)
 
-    print "Describe of hoices:\n", choices.describe()
+    print "Describe of choices:\n", choices.describe()
     sim.add_column("persons", "workplace_taz", choices)
 
     return model_design
 
 
 @sim.model()
-def cdap_simulate(persons, households, cdap_alts, cdap_1_person_spec):
+def cdap_simulate(persons, households, accessibility, cdap_alts,
+                  cdap_1_person_spec):
 
-    choosers = sim.merge_tables(persons.name, tables=[persons, households])
+    choosers = sim.merge_tables(persons.name, tables=[persons,
+                                                      households,
+                                                      accessibility])
 
     alternatives = cdap_alts.to_frame()
-
-    print cdap_1_person_spec
 
     choices, model_design = \
         asim.simple_simulate(choosers, alternatives, cdap_1_person_spec,

@@ -64,8 +64,6 @@ def simple_simulate(choosers, alternatives, spec,
         and values will match the index of the alternatives DataFrame -
         choices are simulated in the standard Monte Carlo fashion
     """
-    exprs = spec.index
-    coeffs = spec.values
     sample_size = sample_size or len(alternatives)
 
     # now the index is also in the dataframe, which means it will be
@@ -83,7 +81,14 @@ def simple_simulate(choosers, alternatives, spec,
 
     # evaluate the expressions to build the final matrix
     vars = {}
-    for expr in exprs:
+    coeffs = []
+    for expr, coeff in spec.iteritems():
+
+        if expr[0][0] == "#":
+            # skip expressions that are "commented"
+            continue
+        coeffs.append(coeff)
+
         if expr[0][0] == "@":
             if mult_by_alt_col:
                 expr = "({}) * df.{}".format(expr[0][1:], expr[1])
