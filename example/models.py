@@ -57,6 +57,12 @@ def cdap_1_person_spec():
     return asim.read_model_spec(f)
 
 
+@sim.injectable()
+def cdap_2_person_spec():
+    f = os.path.join('configs', 'cdap_2_person.csv')
+    return asim.read_model_spec(f)
+
+
 @sim.table()
 def workplace_size_terms(land_use, workplace_size_spec):
     """
@@ -67,17 +73,27 @@ def workplace_size_terms(land_use, workplace_size_spec):
     income)
     """
     land_use = land_use.to_frame()
+
     df = workplace_size_spec.to_frame().query("purpose == 'work'")
+
     df = df.drop("purpose", axis=1).set_index("segment")
+
     new_df = {}
     for index, row in df.iterrows():
+
         missing = row[~row.index.isin(land_use.columns)]
+
         if len(missing) > 0:
             print "WARNING: missing columns in land use\n", missing.index
+
         row = row[row.index.isin(land_use.columns)]
+
         sparse = land_use[list(row.index)]
+
         new_df["size_"+index] = np.dot(sparse.as_matrix(), row.values)
+
     new_df = pd.DataFrame(new_df, index=land_use.index)
+
     return new_df
 
 
@@ -136,22 +152,54 @@ def workplace_location_simulate(persons,
     return model_design
 
 
-@sim.model()
-def cdap_simulate(persons, households, accessibility, cdap_alts,
-                  cdap_1_person_spec):
+# this return a variable for households which is the concatenated person type
+#  for all persons in that household
+@sim.column("households")
+def ptype(persons):
+    return persons.ptype.astype(str).groupby(persons.household_id).\
+        apply(lambda x: x.head(3).sum()).astype('int')
 
-    choosers = sim.merge_tables(persons.name, tables=[persons,
-                                                      households,
-                                                      accessibility])
+
+@sim.column("households")
+def age(persons):
+    return persons.age.groupby(persons.household_id).first()
+
+
+@sim.column("households")
+def sex(persons):
+    return persons.SEX.groupby(persons.household_id).first()
+
+
+@sim.model()
+def cdap_simulate(households, accessibility, cdap_alts):
+
+    choosers = sim.merge_tables(households.name, tables=[households,
+                                                         accessibility])
 
     alternatives = cdap_alts.to_frame()
 
-    choices, model_design = \
-        asim.simple_simulate(choosers, alternatives, cdap_1_person_spec,
-                             mult_by_alt_col=True)
+    all_choices = []
+    for name, grp in choosers.groupby('PERSONS'):
 
-    print "Choices:\n", choices.value_counts()
-    sim.add_column("persons", "cdap", choices)
+        print "Running model for household size = {}".format(name)
+
+        # for testing - not all these are implemented yet
+        if name != 2:
+            print "Skipping", name
+            continue
+
+        spec = sim.get_injectable('cdap_{}_person_spec'.format(name))
+
+        print grp.ptype.value_counts()
+
+        choices, model_design = \
+            asim.simple_simulate(grp, alternatives, spec, mult_by_alt_col=True)
+
+        all_choices.append(choices)
+
+    all_choices = pd.concat(all_choices)
+    print "Choices:\n", all_choices.value_counts()
+    sim.add_column("persons", "cdap", all_choices)
 
     return model_design
 
